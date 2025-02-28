@@ -52,8 +52,6 @@ class AppStorage:
                     INSERT INTO settings (openai_api_key, openai_org_id, learning_curve_min_interval, learning_curve_max_interval)
                     SELECT 
                         '', '',
-#                        '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', 
-#                        'org-68N6LbPiQuUQ7ZbKmpyuxjOg', 
                         0.005,
                         0.02
                     WHERE (SELECT COUNT(*) FROM settings) = 0
