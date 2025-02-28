@@ -51,7 +51,7 @@ class AppStorage:
                 connection.execute('''
                     INSERT INTO settings (openai_api_key, openai_org_id, learning_curve_min_interval, learning_curve_max_interval)
                     SELECT 
-                        '', '',
+                                   '', '',
                         0.005,
                         0.02
                     WHERE (SELECT COUNT(*) FROM settings) = 0
