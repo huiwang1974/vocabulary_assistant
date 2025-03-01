@@ -5,8 +5,8 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.popup import Popup
 import json
+import threading
 from kivy.clock import mainthread
-from kivy.clock import Clock
 import environment as env
 from appstorage import AppStorage
 from listpopup import ListPopup
@@ -22,6 +22,7 @@ class VocabularyAssistantApp(App):
         super().__init__(**kwargs)
         env.load_environment()
         self.listening_started = False
+        self.lookup_started = False
         self.tts = Speech()
         self.app_storage = AppStorage.get_appstorage()
         self.llm_helper = LLMHelper()
@@ -96,18 +97,17 @@ class VocabularyAssistantApp(App):
             if self.transcription_text.text:
                 self.add_lookup(self.transcription_text.text, self.translation_label.text)
                 self.update_event_label(f'{self.transcription_text.text} saved')
+        elif cmd and cmd == 'search':
+            transcription = self.transcription_text.text
+            self.update_translation_label("")
+            self.lookup(transcription)
         elif self.tts.speeking():
-            print("recognized {text} when speaking")
+            print(f"recognized {text} when speaking")
             self.update_event_label("ignore recognition while reading")
         else:
             self.update_transcription_text(text)
-            # this callback is called in voice recognizer's running thread
-            # ie android main ui thread instead of the kivy event dispatching 
-            # thread we call get_translation synchronously
-            translation = self.get_translation(text)
-            if translation:
-                self.update_event_label(f'{text} translated')
-                self.update_translation_label(translation)
+            self.update_translation_label("")
+            self.update_event_label(f"{text} recognized")
 
     def __start_listening_callback(self):
         self.update_status_label('listening...')
@@ -130,7 +130,13 @@ class VocabularyAssistantApp(App):
             return ""
 
     def get_question_about(self, input_string):
-        return self.llm_helper.get_question_about(input_string)
+        try:
+            q = self.llm_helper.get_question_about(input_string)
+            return q
+        except Exception as ex:
+            print(f"{ex}")
+            self.update_event_label(f"{ex}")
+            return ""
     
     def text_to_speech(self, text):
         self.tts.speak(text)  # Pass None for utteranceId if not needed
@@ -140,6 +146,23 @@ class VocabularyAssistantApp(App):
 
     def get_lookups(self):
         return self.app_storage.get_all_lookups()
+
+    def lookup(self, text):
+        if self.lookup_started:
+            self.update_event_label("lookup running")
+            return
+        
+        self.lookup_started = True
+        def translate():
+            if text:
+                translation = self.get_translation(text)
+                if translation:
+                    self.update_translation_label(translation)
+                    self.update_event_label(f'{text} looked up')
+            self.lookup_started = False
+        self.update_translation_label("")
+        self.update_event_label(f'translate {text}')
+        threading.Thread(target=translate).start()
 
     def get_statistics(self):
         return self.app_storage.get_statistics()
@@ -257,13 +280,10 @@ class VocabularyAssistantApp(App):
         # when on_lookup is called in kivy event thread
         # schedule translate method in another thread
         # to avoid blocking event dispatching
-        def translate(dt):
-            if self.transcription_text.text:
-                translation = self.get_translation(self.transcription_text.text)
-                if translation:
-                    self.update_translation_label(translation)
-                    self.update_event_label(f'{self.transcription_text.text} looked up')
-        Clock.schedule_once(translate)
+        self.update_translation_label("")
+
+        self.lookup(self.transcription_text.text)
+
 
     def on_list(self, instance):
         popup = ListPopup(title='Lookups')

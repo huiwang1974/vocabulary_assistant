@@ -87,7 +87,16 @@ command_translations = {
     "speichern": "store",  
     "保存": "store",  
     "저장": "store",  
-    "保存する": "store"
+    "保存する": "store",
+
+    # Search
+    "search": "search",
+    "consultation": "search",
+    "Suche": "search",
+    "consulta": "search",
+    "查找": "search",
+    "검색": "search",
+    "検索": "search",
 }
 
 def command_in_english(cmd):

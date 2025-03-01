@@ -1,15 +1,18 @@
 import json
+import threading
+from kivy.clock import mainthread
 from kivy.app import App
 from kivy.uix.popup import Popup
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.clock import Clock
+
 
 class TestPopup(Popup):
     def __init__(self, lookups, **kwargs):
         super(TestPopup, self).__init__(**kwargs)
+        self.showing_question = False
         self.title = "Test Popup"
         self.size_hint = (0.9, 0.8)  # Width 90% and height 80% of the window
         self.lookups = lookups
@@ -49,23 +52,35 @@ class TestPopup(Popup):
         layout.add_widget(next_button)
 
         self.content = layout  # Set the layout as the content of the popup
-        self.update_label()
+        self.show_question()
 
-    def update_label(self):
-        if self.lookups:
-            lookup = self.lookups[self.current_lookup_idx][0]
-            lookup_response = self.lookups[self.current_lookup_idx][1]
-            question = App.get_running_app().get_question_about(f"{lookup} {lookup_response}")
-            data = json.loads(question)
-            self.question = data['question'] + '\n' + '\n'.join([f"{k}: {v}" for k, v in data['options'].items()])
-            self.answer = data['answer']
-            self.lookup = lookup
-            self.label.text = self.question
-            self.text_input.text = ''
-        else:
-            self.label.text = 'No lookup due for review.'
-            self.text_input.text = ''
+    @mainthread
+    def update_label(self, question, answer):
+        self.label.text = question
+        self.text_input.text = answer
 
+    def show_question(self):
+        if self.showing_question:
+            self.update_label("showing question", "")
+            return
+        self.showing_question = True
+        def show():
+            if self.lookups:
+                lookup = self.lookups[self.current_lookup_idx][0]
+                lookup_response = self.lookups[self.current_lookup_idx][1]
+                question = App.get_running_app().get_question_about(f"{lookup} {lookup_response}")
+                if question:
+                    data = json.loads(question)
+                    self.question = data['question'] + '\n' + '\n'.join([f"{k}: {v}" for k, v in data['options'].items()])
+                    self.answer = data['answer']
+                    self.lookup = lookup
+                    self.update_label(self.question, '')
+                else:
+                    self.update_label('Error getting questions', '')
+            else:
+                self.update_label('No lookup due for review.', '')        
+            self.showing_question = False
+        threading.Thread(target=show).start()
 
     def on_close_click(self, instance):
         self.dismiss()  # Close the popup
@@ -73,7 +88,7 @@ class TestPopup(Popup):
     def on_next_click(self, instance):
         if self.lookups:
             self.current_lookup_idx = (self.current_lookup_idx + 1) % len(self.lookups)
-        self.update_label()
+        self.show_question()
 
     def on_button_click(self, instance):
         # Print a message and close the popup
