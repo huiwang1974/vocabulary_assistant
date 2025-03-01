@@ -33,11 +33,11 @@ class VocabularyAssistantApp(App):
 
     @mainthread
     def update_status_label(self, text):
-        self.status_label.text = f'Status: {text}'
+        self.status_label.text = f'Status: {text[0:20]}'
 
     @mainthread
     def update_event_label(self, text):
-        self.event_label.text = f'Events: {text}'
+        self.event_label.text = f'Events: {text[0:20]}'
 
     @mainthread
     def update_translation_label(self, text):
@@ -105,8 +105,9 @@ class VocabularyAssistantApp(App):
             # ie android main ui thread instead of the kivy event dispatching 
             # thread we call get_translation synchronously
             translation = self.get_translation(text)
-            self.update_event_label(f'{text} translated')
-            self.update_translation_label(translation)
+            if translation:
+                self.update_event_label(f'{text} translated')
+                self.update_translation_label(translation)
 
     def __start_listening_callback(self):
         self.update_status_label('listening...')
@@ -120,8 +121,13 @@ class VocabularyAssistantApp(App):
         self.update_event_label(f'listening error: {error_message}')
 
     def get_translation(self, input_string):
-        data = json.loads(self.llm_helper.get_translation(input_string))
-        return '\n'.join([f"{key}: {value}" for key, value in data.items()])
+        try:
+            data = json.loads(self.llm_helper.get_translation(input_string))
+            return '\n'.join([f"{key}: {value}" for key, value in data.items()])
+        except Exception as ex:
+            print(f"{ex}")
+            self.update_event_label(f"{ex}")
+            return ""
 
     def get_question_about(self, input_string):
         return self.llm_helper.get_question_about(input_string)
@@ -254,8 +260,9 @@ class VocabularyAssistantApp(App):
         def translate(dt):
             if self.transcription_text.text:
                 translation = self.get_translation(self.transcription_text.text)
-                self.update_translation_label(translation)
-                self.update_event_label(f'{self.transcription_text.text} looked up')
+                if translation:
+                    self.update_translation_label(translation)
+                    self.update_event_label(f'{self.transcription_text.text} looked up')
         Clock.schedule_once(translate)
 
     def on_list(self, instance):
